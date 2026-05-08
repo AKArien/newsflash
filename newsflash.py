@@ -29,7 +29,7 @@ except ImportError:
         import tomli as tomllib  # type: ignore[no-redef]
     except ImportError:
         sys.exit(
-            "error: tomllib (Python ≥ 3.11) or the 'tomli' package is required."
+            "error: tomllib (Python >= 3.11) or the 'tomli' package is required."
         )
 
 # ── D-Bus / GLib ──────────────────────────────────────────────────────────────
@@ -42,6 +42,7 @@ except ImportError:
     sys.exit("error: 'dbus-python' and 'PyGObject' are required.")
 
 # ── inotify (optional; hot-reload disabled when absent) ───────────────────────
+_INOTIFY_LIB: str | None = None
 try:
     import inotify_simple as _inotify_mod
 
@@ -52,7 +53,7 @@ except ImportError:
 
         _INOTIFY_LIB = "inotify"
     except ImportError:
-        _INOTIFY_LIB: str | None = None
+        pass
 
 # ─────────────────────────────────────────────────────────────────────────────
 
