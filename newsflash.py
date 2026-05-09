@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """newsflash - D-Bus notification listener that flashes keyboard LEDs.
 
-Eavesdrops on the session bus for org.freedesktop.Notifications.Notify and
+Monitors the session bus for org.freedesktop.Notifications.Notify calls and
 triggers a brightness animation on matched LED devices for each notification.
 
 Configuration is read from $XDG_CONFIG_HOME/newsflash.toml (defaulting to
@@ -106,25 +106,44 @@ class NewsFlash:
 
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self._system_bus = dbus.SystemBus()
-        session_bus = dbus.SessionBus()
 
-        # Intercept Notify method calls on the session bus.
-        # eavesdrop=true is required to see method calls not addressed to us.
-        session_bus.add_message_filter(self._on_message)
+        # Dedicated session-bus connection used only for monitoring.
+        # Using BecomeMonitor ensures the D-Bus daemon still routes Notify
+        # calls normally to the real notification daemon; newsflash receives
+        # read-only copies and never sends a reply, so notify-send is
+        # unaffected.
+        monitor_bus = dbus.SessionBus()
+        monitor_bus.add_message_filter(self._on_message)
+
+        _NOTIFY_RULE = (
+            "type='method_call',"
+            "interface='org.freedesktop.Notifications',"
+            "member='Notify'"
+        )
         try:
-            session_bus.add_match_string(
-                "eavesdrop=true,"
-                "type='method_call',"
-                "interface='org.freedesktop.Notifications',"
-                "member='Notify'"
+            monitoring_iface = dbus.Interface(
+                monitor_bus.get_object(
+                    "org.freedesktop.DBus", "/org/freedesktop/DBus"
+                ),
+                "org.freedesktop.DBus.Monitoring",
+            )
+            monitoring_iface.BecomeMonitor(
+                dbus.Array([_NOTIFY_RULE], signature="s"),
+                dbus.UInt32(0),
             )
         except dbus.exceptions.DBusException as exc:
-            logger.error(
-                "Could not install eavesdrop match rule (%s). "
-                "Notifications may not be detected. "
-                "Ensure your D-Bus policy allows eavesdropping.",
+            logger.warning(
+                "BecomeMonitor unavailable (%s); falling back to eavesdrop match rule.",
                 exc,
             )
+            try:
+                monitor_bus.add_match_string("eavesdrop=true," + _NOTIFY_RULE)
+            except dbus.exceptions.DBusException as exc2:
+                logger.error(
+                    "Could not install eavesdrop match rule (%s). "
+                    "Notifications may not be detected.",
+                    exc2,
+                )
 
         start_config_watcher(self.reload_config)
 
