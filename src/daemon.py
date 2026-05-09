@@ -100,6 +100,7 @@ class newsflash:
 
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self._system_bus = dbus.SystemBus()
+        DeviceFlasher.system_bus = self._system_bus
         session_bus = dbus.SessionBus()
 
         # Private session-bus connection used only for monitoring.

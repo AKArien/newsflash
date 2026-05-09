@@ -42,14 +42,14 @@ class DeviceFlasher:
     requested while one is already running it is silently ignored.
     """
 
-    config: dict
-    system_bus: dbus.SystemBus
+    config: dict | None = None
+    system_bus: dbus.SystemBus | None = None
 
     def __init__(self, device: str) -> None:
         self.device = device
         self._lock = threading.Lock()
         self.initial = self._read_brightness()
-        self.max_val = self._read_max_brightness()
+        self.max_brightness = self._read_max_brightness()
         if os.access(os.path.join(LED_CLASS_PATH, device, "brightness"), os.W_OK):
             self._write = self._write_brightness_direct
         else:
@@ -81,7 +81,7 @@ class DeviceFlasher:
     def _write_brightness_logind(self, value: int) -> None:
         """Set brightness via systemd-logind's SetBrightness D-Bus method."""
         try:
-            obj = system_bus.get_object(
+            obj = DeviceFlasher.system_bus.get_object(
                 "org.freedesktop.login1", "/org/freedesktop/login1"
             )
             iface = dbus.Interface(obj, "org.freedesktop.login1.Manager")
@@ -97,7 +97,7 @@ class DeviceFlasher:
         The animation smoothly moves from *initial* → *max_brightness* → 0,
         repeating that up-down cycle *cycles* times, then returns to *initial*.
         """
-        return [initial] + [self.max_brightness, 0] * config["cycles"] + [initial]
+        return [initial] + [self.max_brightness, 0] * DeviceFlasher.config["cycles"] + [initial]
 
     def flash(self) -> None:
         """Start a flash animation in a new thread (non-blocking).
@@ -108,7 +108,7 @@ class DeviceFlasher:
             return
         threading.Thread(
             target=self._run_animation,
-            args=(config["duration"], config["cycles"]),
+            # args=(DeviceFlasher.config["duration"], DeviceFlasher.config["cycles"]),
             daemon=True,
             name=f"flash-{self.device}",
         ).start()
@@ -118,8 +118,8 @@ class DeviceFlasher:
             initial = self._read_brightness()
             keyframes = self._animation_keyframes(initial)
             n_segments = len(keyframes) - 1
-            total_steps = max(1, int(config["duration"] * ANIMATION_HZ))
-            step_dt = config["duration"] / total_steps
+            total_steps = max(1, int(DeviceFlasher.config["duration"] * ANIMATION_HZ))
+            step_dt = DeviceFlasher.config["duration"] / total_steps
 
             for step in range(total_steps + 1):
                 t = step / total_steps          # 0.0 … 1.0
