@@ -84,10 +84,11 @@ class newsflash:
         message: dbus.lowlevel.Message,
     ) -> int:
         """dbus listener callback"""
+        logger.info("message intercepted.")
         if (
             message.get_type() == dbus.lowlevel.MESSAGE_TYPE_METHOD_CALL
-            and message.get_interface() == "org.freedesktop.notifications"
-            and message.get_member() == "notify"
+            and message.get_interface() == "org.freedesktop.Notifications"
+            and message.get_member() == "Notify"
         ):
             threading.Thread(
                 target=self._flash_all, daemon=True, name="flash-dispatch"
