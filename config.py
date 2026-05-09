@@ -1,4 +1,4 @@
-"""newsflash.config — Configuration loading and inotify-based hot-reload."""
+"""newsflash.config - Configuration loading and inotify-based hot-reload."""
 
 from __future__ import annotations
 

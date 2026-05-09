@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""newsflash — D-Bus notification listener that flashes keyboard LEDs.
+"""newsflash - D-Bus notification listener that flashes keyboard LEDs.
 
 Eavesdrops on the session bus for org.freedesktop.Notifications.Notify and
 triggers a brightness animation on matched LED devices for each notification.
