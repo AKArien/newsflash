@@ -1,4 +1,4 @@
-"""newsflash.flasher — LED device discovery and brightness animation."""
+"""newsflash.flasher - LED device discovery and brightness animation."""
 
 from __future__ import annotations
 
