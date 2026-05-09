@@ -8,7 +8,6 @@ import sys
 import threading
 from typing import Any, Callable
 
-# ── TOML ──────────────────────────────────────────────────────────────────────
 try:
     import tomllib  # Python 3.11+
 except ImportError:
@@ -19,15 +18,12 @@ except ImportError:
             "error: tomllib (Python >= 3.11) or the 'tomli' package is required."
         )
 
-# ── inotify (optional; hot-reload disabled when absent) ───────────────────────
 try:
-    import inotify_simple as _inotify_mod
+    import inotify_simple as _in
 
     _HAVE_INOTIFY = True
 except ImportError:
     _HAVE_INOTIFY = False
-
-# ─────────────────────────────────────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +34,6 @@ DEFAULTS: dict[str, Any] = {
 }
 
 CONFIG_FILENAME = "newsflash.toml"
-
 
 def config_path() -> str:
     """Return the absolute path to the user's configuration file."""
@@ -65,16 +60,15 @@ def load_config(path: str) -> dict[str, Any]:
             logger.error("Failed to load config %s: %s", path, exc)
     return cfg
 
-
 def _watch_config(on_change: Callable[[], None]) -> None:
     cfg_dir = os.path.dirname(config_path())
     if not os.path.isdir(cfg_dir):
         return
-    inotify = _inotify_mod.INotify()
+    inotify = _in.INotify()
     mask = (
-        _inotify_mod.flags.CLOSE_WRITE
-        | _inotify_mod.flags.MOVED_TO
-        | _inotify_mod.flags.CREATE
+        _in.flags.CLOSE_WRITE
+        | _in.flags.MOVED_TO
+        | _in.flags.CREATE
     )
     inotify.add_watch(cfg_dir, mask)
     try:
@@ -85,7 +79,6 @@ def _watch_config(on_change: Callable[[], None]) -> None:
                     on_change()
     finally:
         inotify.close()
-
 
 def start_config_watcher(on_change: Callable[[], None]) -> None:
     """Start a daemon thread that calls *on_change* when the config file changes.

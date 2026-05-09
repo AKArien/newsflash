@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""newsflash - D-Bus notification listener that flashes keyboard LEDs.
+"""newsflash : d-bus notification listener that flashes device leds.
 
 Monitors the session bus for org.freedesktop.Notifications.Notify calls and
 triggers a brightness animation on matched LED devices for each notification.
 
-Configuration is read from $XDG_CONFIG_HOME/newsflash.toml (defaulting to
-~/.config/newsflash.toml) and hot-reloaded via inotify whenever the file
-changes.
+configuration is read from $XDG_CONFIG_HOME/newsflash.toml (defaulting to
+~/.config/newsflash.toml) and hot-reloaded whenever the config file changes.
 """
 
 from __future__ import annotations
@@ -15,104 +14,91 @@ import logging
 import signal
 import sys
 import threading
-from typing import Any
+from typing import any
 
-# ── D-Bus / GLib ──────────────────────────────────────────────────────────────
 try:
     import dbus
     import dbus.connection
     import dbus.exceptions
     import dbus.lowlevel
     import dbus.mainloop.glib
-    from gi.repository import GLib
-except ImportError:
-    sys.exit("error: 'dbus-python' and 'PyGObject' are required.")
+    from gi.repository import glib
+except importerror:
+    sys.exit("error: 'dbus-python' and 'pygobject' are required.")
 
-from config import DEFAULTS, config_path, load_config, start_config_watcher
-from flasher import DeviceFlasher, matching_devices
+from config import defaults, config_path, load_config, start_config_watcher
+from flasher import deviceflasher, matching_devices
 
-# ─────────────────────────────────────────────────────────────────────────────
-
-logger = logging.getLogger(__name__)
+logger = logging.getlogger(__name__)
 
 _NOTIFY_MATCH_RULE = (
     "type='method_call',"
     "interface='org.freedesktop.Notifications',"
     "member='Notify'"
 )
-_NOTIFY_MATCH_RULE_EAVESDROP = "eavesdrop=true," + _NOTIFY_MATCH_RULE
 
-
-class NewsFlash:
-    """D-Bus notification monitor that flashes keyboard LEDs."""
+class newsflash:
+    """d-bus notification monitor that flashes device leds."""
 
     def __init__(self) -> None:
-        self._config: dict[str, Any] = dict(DEFAULTS)
-        self._config_lock = threading.RLock()
-        self._flashers: dict[str, DeviceFlasher] = {}
-        self._flashers_lock = threading.Lock()
-        self._system_bus: dbus.SystemBus | None = None
-        self._loop: GLib.MainLoop | None = None
-
-    # ── Config management ──────────────────────────────────────────────────
+        self._config: dict[str, any] = dict(defaults)
+        self._config_lock = threading.rlock()
+        self._flashers: dict[str, deviceflasher] = {}
+        self._flashers_lock = threading.lock()
+        self._system_bus: dbus.systembus | none = none
+        self._loop: glib.mainloop | none = none
 
     def reload_config(self) -> None:
-        """Load (or reload) configuration from disk."""
         new_cfg = load_config(config_path())
         with self._config_lock:
             self._config = new_cfg
 
-    def _get_config(self) -> dict[str, Any]:
+    def _get_config(self) -> dict[str, any]:
         with self._config_lock:
             return dict(self._config)
 
-    # ── LED flash dispatch ─────────────────────────────────────────────────
-
-    def _get_flasher(self, device: str) -> DeviceFlasher:
+    def _get_flasher(self, device: str) -> deviceflasher:
         with self._flashers_lock:
             if device not in self._flashers:
-                self._flashers[device] = DeviceFlasher(device, self._system_bus)
+                self._flashers[device] = deviceflasher(device, self._system_bus)
             return self._flashers[device]
 
     def _flash_all(self) -> None:
         cfg = self._get_config()
-        patterns: list[str] = cfg.get("devices", DEFAULTS["devices"])
-        duration: float = float(cfg.get("duration", DEFAULTS["duration"]))
-        cycles: int = int(cfg.get("cycles", DEFAULTS["cycles"]))
+        patterns: list[str] = cfg.get("devices", defaults["devices"])
+        duration: float = float(cfg.get("duration", defaults["duration"]))
+        cycles: int = int(cfg.get("cycles", defaults["cycles"]))
 
         devices = matching_devices(patterns)
         if not devices:
-            logger.debug("No LED devices matched patterns: %s", patterns)
+            logger.debug("no led devices matched patterns: %s", patterns)
             return
 
         for device in devices:
             self._get_flasher(device).flash(duration, cycles)
 
-    # ── D-Bus message filter ───────────────────────────────────────────────
-
     def _on_message(
         self,
-        connection: dbus.connection.Connection,
-        message: dbus.lowlevel.Message,
+        connection: dbus.connection.connection,
+        message: dbus.lowlevel.message,
     ) -> int:
+        """dbus listener callback"""
         if (
-            message.get_type() == dbus.lowlevel.MESSAGE_TYPE_METHOD_CALL
-            and message.get_interface() == "org.freedesktop.Notifications"
-            and message.get_member() == "Notify"
+            message.get_type() == dbus.lowlevel.message_type_method_call
+            and message.get_interface() == "org.freedesktop.notifications"
+            and message.get_member() == "notify"
         ):
-            logger.debug("Notification detected — flashing LEDs.")
-            threading.Thread(
-                target=self._flash_all, daemon=True, name="flash-dispatch"
+            threading.thread(
+                target=self._flash_all, daemon=true, name="flash-dispatch"
             ).start()
-        return dbus.lowlevel.HANDLER_RESULT_NOT_YET_HANDLED
-
-    # ── Entry point ────────────────────────────────────────────────────────
+        return dbus.lowlevel.handler_result_not_yet_handled
 
     def run(self) -> None:
         self.reload_config()
 
-        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-        self._system_bus = dbus.SystemBus()
+        dbus.mainloop.glib.dbusgmainloop(set_as_default=true)
+        self._system_bus = dbus.systembus()
+        session_bus = dbus.sessionbus()
 
         # Private session-bus connection used only for monitoring.
         # private=True avoids converting the shared SessionBus singleton to
@@ -122,9 +108,6 @@ class NewsFlash:
         # normally to the real notification daemon; newsflash receives
         # read-only copies and never sends a reply, so notify-send is
         # unaffected.
-        monitor_bus = dbus.SessionBus(private=True)
-        monitor_bus.add_message_filter(self._on_message)
-
         try:
             monitoring_iface = dbus.Interface(
                 monitor_bus.get_object(
@@ -139,40 +122,29 @@ class NewsFlash:
         except dbus.exceptions.DBusException as exc:
             logger.warning(
                 "BecomeMonitor unavailable (%s); falling back to eavesdrop match rule.",
+                "newsflash will *probably* not work. "
                 exc,
             )
-            try:
-                monitor_bus.add_match_string(_NOTIFY_MATCH_RULE_EAVESDROP)
-            except dbus.exceptions.DBusException as exc2:
-                logger.error(
-                    "Could not install eavesdrop match rule (%s). "
-                    "Notifications may not be detected.",
-                    exc2,
-                )
 
         start_config_watcher(self.reload_config)
 
-        self._loop = GLib.MainLoop()
+        self._loop = glib.mainloop()
 
         def _shutdown(signum: int, _frame: object) -> None:
-            logger.info("Received signal %d, shutting down.", signum)
+            logger.info("received signal %d, shutting down.", signum)
             if self._loop:
                 self._loop.quit()
 
-        signal.signal(signal.SIGTERM, _shutdown)
-        signal.signal(signal.SIGINT, _shutdown)
+        signal.signal(signal.sigterm, _shutdown)
+        signal.signal(signal.sigint, _shutdown)
 
         logger.info("newsflash daemon started.")
         self._loop.run()
         logger.info("newsflash daemon stopped.")
 
-
-# ── CLI entry point ───────────────────────────────────────────────────────────
-
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    NewsFlash().run()
-
+    logging.basicconfig(level=logging.info, format="%(levelname)s: %(message)s")
+    newsflash().run()
 
 if __name__ == "__main__":
     main()
