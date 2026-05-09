@@ -22,14 +22,14 @@ try:
     import dbus.exceptions
     import dbus.lowlevel
     import dbus.mainloop.glib
-    from gi.repository import glib
-except importerror:
+    # from gi.repository import glib
+except ImportError:
     sys.exit("error: 'dbus-python' and 'pygobject' are required.")
 
-from config import defaults, config_path, load_config, start_config_watcher
-from flasher import DeviceFlasher, matching_devices
+logger = logging.getLogger(__name__)
 
-logger = logging.getlogger(__name__)
+import config
+from flasher import DeviceFlasher, matching_devices
 
 _NOTIFY_MATCH_RULE = (
     "type='method_call',"
@@ -41,15 +41,15 @@ class newsflash:
     """d-bus notification monitor that flashes device leds."""
 
     def __init__(self) -> None:
-        self._config: dict[str, Any] = dict(defaults)
+        self._config = config.DEFAULTS
         self._config_lock = threading.rlock()
-        self._flashers: dict[str, deviceflasher] = {}
+        self._flashers: dict[str, DeviceFlasher] = {}
         self._flashers_lock = threading.lock()
         self._system_bus: dbus.systembus | none = none
         self._loop: glib.mainloop | none = none
 
     def reload_config(self) -> None:
-        new_cfg = load_config(config_path())
+        new_cfg = config.load(config.path())
         with self._config_lock:
             self._config = new_cfg
         DeviceFlasher.config = self._config
@@ -58,17 +58,15 @@ class newsflash:
         with self._config_lock:
             return dict(self._config)
 
-    def _get_flasher(self, device: str) -> deviceflasher:
+    def _get_flasher(self, device: str) -> DeviceFlasher:
         with self._flashers_lock:
             if device not in self._flashers:
-                self._flashers[device] = deviceflasher(device, self._system_bus)
+                self._flashers[device] = DeviceFlasher(device)
             return self._flashers[device]
 
     def _flash_all(self) -> None:
         cfg = self._get_config()
-        patterns: list[str] = cfg.get("devices", defaults["devices"])
-        duration: float = float(cfg.get("duration", defaults["duration"]))
-        cycles: int = int(cfg.get("cycles", defaults["cycles"]))
+        patterns: list[str] = cfg.get("devices", config.DEFAULTS["devices"])
 
         devices = matching_devices(patterns)
         if not devices:
@@ -127,7 +125,7 @@ class newsflash:
                 exc,
             )
 
-        start_config_watcher(self.reload_config)
+        config.start_watcher(self.reload_config)
 
         self._loop = glib.mainloop()
 
@@ -136,8 +134,8 @@ class newsflash:
             if self._loop:
                 self._loop.quit()
 
-        signal.signal(signal.sigterm, _shutdown)
-        signal.signal(signal.sigint, _shutdown)
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
 
         logger.info("newsflash daemon started.")
         self._loop.run()
