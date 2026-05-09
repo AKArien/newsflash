@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import functools
 import logging
 import os
 import sys
@@ -21,18 +20,12 @@ except ImportError:
         )
 
 # ── inotify (optional; hot-reload disabled when absent) ───────────────────────
-_INOTIFY_LIB: str | None = None
 try:
     import inotify_simple as _inotify_mod
 
-    _INOTIFY_LIB = "inotify_simple"
+    _HAVE_INOTIFY = True
 except ImportError:
-    try:
-        import inotify.adapters as _inotify_adapters  # type: ignore[assignment]
-
-        _INOTIFY_LIB = "inotify"
-    except ImportError:
-        pass
+    _HAVE_INOTIFY = False
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -73,7 +66,7 @@ def load_config(path: str) -> dict[str, Any]:
     return cfg
 
 
-def _watch_inotify_simple(on_change: Callable[[], None]) -> None:
+def _watch_config(on_change: Callable[[], None]) -> None:
     cfg_dir = os.path.dirname(config_path())
     if not os.path.isdir(cfg_dir):
         return
@@ -94,37 +87,19 @@ def _watch_inotify_simple(on_change: Callable[[], None]) -> None:
         inotify.close()
 
 
-def _watch_inotify(on_change: Callable[[], None]) -> None:
-    cfg_dir = os.path.dirname(config_path())
-    if not os.path.isdir(cfg_dir):
-        return
-    ino = _inotify_adapters.Inotify()
-    ino.add_watch(cfg_dir)
-    for event in ino.event_gen(yield_nones=False):
-        (_, type_names, _path, filename) = event
-        if filename == CONFIG_FILENAME and any(
-            t in type_names
-            for t in ("IN_CLOSE_WRITE", "IN_MOVED_TO", "IN_CREATE")
-        ):
-            logger.info("Config file changed, reloading...")
-            on_change()
-
-
 def start_config_watcher(on_change: Callable[[], None]) -> None:
     """Start a daemon thread that calls *on_change* when the config file changes.
 
-    Does nothing if no inotify library is available.
+    Does nothing if inotify-simple is not installed.
     """
-    if _INOTIFY_LIB == "inotify_simple":
-        target = functools.partial(_watch_inotify_simple, on_change)
-    elif _INOTIFY_LIB == "inotify":
-        target = functools.partial(_watch_inotify, on_change)
-    else:
+    if not _HAVE_INOTIFY:
         logger.warning(
-            "No inotify library found; config hot-reload disabled. "
+            "inotify-simple not found; config hot-reload disabled. "
             "Install 'inotify-simple' to enable it."
         )
         return
-    thread = threading.Thread(target=target, daemon=True, name="config-watcher")
+    thread = threading.Thread(
+        target=_watch_config, args=(on_change,), daemon=True, name="config-watcher"
+    )
     thread.start()
-    logger.info("Config hot-reload enabled via %s.", _INOTIFY_LIB)
+    logger.info("Config hot-reload enabled.")
