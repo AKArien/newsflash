@@ -50,10 +50,10 @@ class DeviceFlasher:
         self._lock = threading.Lock()
         self.initial = self._read_brightness()
         self.max_val = self._read_max_brightness()
-        self._write = (os.access(os.path.join(LED_CLASS_PATH, device, "brightness")), os.W_OK
-            ? self.write_brightness_direct
-            : self.write_brightness_logind
-        )
+        if os.access(os.path.join(LED_CLASS_PATH, device, "brightness"), os.W_OK):
+            self._write = self._write_brightness_direct
+        else:
+            self._write = self._write_brightness_logind
 
     def _read_int(self, path: str, default: int = 0) -> int:
         try:
