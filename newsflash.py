@@ -1,10 +1,10 @@
 import logging
 from src.daemon import newsflash
 
-logger = logging.getlogger(__name__)
+logger = logging.getLogger(__name__)
 
 def main() -> None:
-    logging.basicconfig(level=logging.info, format="%(levelname)s: %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     newsflash().run()
 
 if __name__ == "__main__":
