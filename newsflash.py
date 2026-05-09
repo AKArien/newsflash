@@ -107,12 +107,15 @@ class NewsFlash:
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self._system_bus = dbus.SystemBus()
 
-        # Dedicated session-bus connection used only for monitoring.
-        # Using BecomeMonitor ensures the D-Bus daemon still routes Notify
-        # calls normally to the real notification daemon; newsflash receives
+        # Private session-bus connection used only for monitoring.
+        # private=True avoids converting the shared SessionBus singleton to
+        # monitor mode, which would break any other dbus-python code sharing
+        # that connection.
+        # BecomeMonitor ensures the D-Bus daemon still routes Notify calls
+        # normally to the real notification daemon; newsflash receives
         # read-only copies and never sends a reply, so notify-send is
         # unaffected.
-        monitor_bus = dbus.SessionBus()
+        monitor_bus = dbus.SessionBus(private=True)
         monitor_bus.add_message_filter(self._on_message)
 
         _NOTIFY_RULE = (
@@ -120,6 +123,7 @@ class NewsFlash:
             "interface='org.freedesktop.Notifications',"
             "member='Notify'"
         )
+        _NOTIFY_RULE_EAVESDROP = "eavesdrop=true," + _NOTIFY_RULE
         try:
             monitoring_iface = dbus.Interface(
                 monitor_bus.get_object(
@@ -137,7 +141,7 @@ class NewsFlash:
                 exc,
             )
             try:
-                monitor_bus.add_match_string("eavesdrop=true," + _NOTIFY_RULE)
+                monitor_bus.add_match_string(_NOTIFY_RULE_EAVESDROP)
             except dbus.exceptions.DBusException as exc2:
                 logger.error(
                     "Could not install eavesdrop match rule (%s). "
