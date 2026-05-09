@@ -12,11 +12,11 @@ import tempfile
 import textwrap
 import unittest
 
-# Make sure the module under test is importable without D-Bus being available
+# Make sure the modules under test are importable without D-Bus being available
 # at import time.  We monkey-patch the heavy optional imports before loading.
 import types
 
-# Stub out dbus so the module can be imported in a headless CI environment.
+# Stub out dbus so the modules can be imported in a headless CI environment.
 _dbus_stub = types.ModuleType("dbus")
 _dbus_stub.SessionBus = object
 _dbus_stub.SystemBus = object
@@ -71,30 +71,32 @@ _gi_stub.repository = _gi_repo
 sys.modules.setdefault("gi", _gi_stub)
 sys.modules.setdefault("gi.repository", _gi_repo)
 
-# Now import the module under test.
+# Now import the modules under test.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import newsflash as nf  # noqa: E402
+import config as cfg_mod  # noqa: E402
+import flasher as fl_mod  # noqa: E402
+import newsflash as nf    # noqa: E402
 
 
 class TestConfigPath(unittest.TestCase):
     def test_uses_xdg_config_home(self):
         os.environ["XDG_CONFIG_HOME"] = "/custom/config"
-        path = nf.config_path()
+        path = cfg_mod.config_path()
         self.assertEqual(path, "/custom/config/newsflash.toml")
 
     def test_falls_back_to_home_config(self):
         os.environ.pop("XDG_CONFIG_HOME", None)
-        path = nf.config_path()
+        path = cfg_mod.config_path()
         self.assertIn(".config", path)
         self.assertTrue(path.endswith("newsflash.toml"))
 
 
 class TestLoadConfig(unittest.TestCase):
     def test_defaults_when_file_missing(self):
-        cfg = nf.load_config("/nonexistent/path/newsflash.toml")
-        self.assertEqual(cfg["duration"], nf.DEFAULTS["duration"])
-        self.assertEqual(cfg["cycles"], nf.DEFAULTS["cycles"])
-        self.assertEqual(cfg["devices"], nf.DEFAULTS["devices"])
+        loaded = cfg_mod.load_config("/nonexistent/path/newsflash.toml")
+        self.assertEqual(loaded["duration"], cfg_mod.DEFAULTS["duration"])
+        self.assertEqual(loaded["cycles"], cfg_mod.DEFAULTS["cycles"])
+        self.assertEqual(loaded["devices"], cfg_mod.DEFAULTS["devices"])
 
     def test_values_loaded_from_file(self):
         content = textwrap.dedent("""\
@@ -106,10 +108,10 @@ class TestLoadConfig(unittest.TestCase):
             fh.write(content.encode())
             path = fh.name
         try:
-            cfg = nf.load_config(path)
-            self.assertAlmostEqual(cfg["duration"], 2.5)
-            self.assertEqual(cfg["cycles"], 4)
-            self.assertEqual(cfg["devices"], ["*rgb*"])
+            loaded = cfg_mod.load_config(path)
+            self.assertAlmostEqual(loaded["duration"], 2.5)
+            self.assertEqual(loaded["cycles"], 4)
+            self.assertEqual(loaded["devices"], ["*rgb*"])
         finally:
             os.unlink(path)
 
@@ -119,11 +121,11 @@ class TestLoadConfig(unittest.TestCase):
             fh.write(content.encode())
             path = fh.name
         try:
-            cfg = nf.load_config(path)
-            self.assertEqual(cfg["cycles"], 3)
+            loaded = cfg_mod.load_config(path)
+            self.assertEqual(loaded["cycles"], 3)
             # duration and devices should still be the defaults
-            self.assertEqual(cfg["duration"], nf.DEFAULTS["duration"])
-            self.assertEqual(cfg["devices"], nf.DEFAULTS["devices"])
+            self.assertEqual(loaded["duration"], cfg_mod.DEFAULTS["duration"])
+            self.assertEqual(loaded["devices"], cfg_mod.DEFAULTS["devices"])
         finally:
             os.unlink(path)
 
@@ -132,8 +134,8 @@ class TestLoadConfig(unittest.TestCase):
             fh.write(b"this is not valid = = toml !!!")
             path = fh.name
         try:
-            cfg = nf.load_config(path)
-            self.assertEqual(cfg["duration"], nf.DEFAULTS["duration"])
+            loaded = cfg_mod.load_config(path)
+            self.assertEqual(loaded["duration"], cfg_mod.DEFAULTS["duration"])
         finally:
             os.unlink(path)
 
@@ -142,8 +144,8 @@ class TestMatchingDevices(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
         # Save and override the module-level constant
-        self._orig = nf.LED_CLASS_PATH
-        nf.LED_CLASS_PATH = self._tmpdir
+        self._orig = fl_mod.LED_CLASS_PATH
+        fl_mod.LED_CLASS_PATH = self._tmpdir
         # Create some fake device directories
         for name in [
             "asus::kbd_backlight",
@@ -155,12 +157,12 @@ class TestMatchingDevices(unittest.TestCase):
             os.makedirs(os.path.join(self._tmpdir, name), exist_ok=True)
 
     def tearDown(self):
-        nf.LED_CLASS_PATH = self._orig
+        fl_mod.LED_CLASS_PATH = self._orig
         import shutil
         shutil.rmtree(self._tmpdir)
 
     def test_default_patterns_match_keyboard_devices(self):
-        devices = nf.matching_devices(["*keyboard*", "*kbd*"])
+        devices = fl_mod.matching_devices(["*keyboard*", "*kbd*"])
         names = set(devices)
         self.assertIn("asus::kbd_backlight", names)
         self.assertIn("tpacpi::kbd_backlight", names)
@@ -169,45 +171,45 @@ class TestMatchingDevices(unittest.TestCase):
         self.assertNotIn("input4::capslock", names)
 
     def test_wildcard_star_matches_all(self):
-        devices = nf.matching_devices(["*"])
+        devices = fl_mod.matching_devices(["*"])
         self.assertEqual(len(devices), 5)
 
     def test_no_match_returns_empty(self):
-        devices = nf.matching_devices(["*nonexistent*"])
+        devices = fl_mod.matching_devices(["*nonexistent*"])
         self.assertEqual(devices, [])
 
     def test_no_duplicates(self):
         # A device matching multiple patterns should appear only once.
-        devices = nf.matching_devices(["*kbd*", "*keyboard*"])
+        devices = fl_mod.matching_devices(["*kbd*", "*keyboard*"])
         self.assertEqual(len(devices), len(set(devices)))
 
     def test_missing_led_path_returns_empty(self):
-        nf.LED_CLASS_PATH = "/nonexistent/path"
-        self.assertEqual(nf.matching_devices(["*"]), [])
+        fl_mod.LED_CLASS_PATH = "/nonexistent/path"
+        self.assertEqual(fl_mod.matching_devices(["*"]), [])
 
 
 class TestAnimationKeyframes(unittest.TestCase):
     def test_cycles_1(self):
-        kf = nf.animation_keyframes(50, 255, 1)
+        kf = fl_mod.DeviceFlasher._animation_keyframes(50, 255, 1)
         self.assertEqual(kf, [50, 255, 0, 50])
 
     def test_cycles_2(self):
-        kf = nf.animation_keyframes(50, 255, 2)
+        kf = fl_mod.DeviceFlasher._animation_keyframes(50, 255, 2)
         self.assertEqual(kf, [50, 255, 0, 255, 0, 50])
 
     def test_cycles_3(self):
-        kf = nf.animation_keyframes(100, 200, 3)
+        kf = fl_mod.DeviceFlasher._animation_keyframes(100, 200, 3)
         self.assertEqual(kf, [100, 200, 0, 200, 0, 200, 0, 100])
 
     def test_initial_zero(self):
-        kf = nf.animation_keyframes(0, 255, 2)
+        kf = fl_mod.DeviceFlasher._animation_keyframes(0, 255, 2)
         self.assertEqual(kf[0], 0)
         self.assertEqual(kf[-1], 0)
         self.assertEqual(max(kf), 255)
 
     def test_length(self):
         for cycles in (1, 2, 3, 5):
-            kf = nf.animation_keyframes(10, 255, cycles)
+            kf = fl_mod.DeviceFlasher._animation_keyframes(10, 255, cycles)
             # [initial] + [max, 0] * cycles + [initial]
             self.assertEqual(len(kf), 2 * cycles + 2)
 
@@ -222,12 +224,12 @@ class TestReloadConfig(unittest.TestCase):
         try:
             os.environ["XDG_CONFIG_HOME"] = os.path.dirname(path)
             # Rename so it matches the expected config filename
-            target = os.path.join(os.path.dirname(path), nf.CONFIG_FILENAME)
+            target = os.path.join(os.path.dirname(path), cfg_mod.CONFIG_FILENAME)
             os.rename(path, target)
             daemon.reload_config()
-            cfg = daemon._get_config()
-            self.assertAlmostEqual(cfg["duration"], 3.0)
-            self.assertEqual(cfg["cycles"], 5)
+            loaded = daemon._get_config()
+            self.assertAlmostEqual(loaded["duration"], 3.0)
+            self.assertEqual(loaded["cycles"], 5)
         finally:
             try:
                 os.unlink(target)
@@ -237,3 +239,4 @@ class TestReloadConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
