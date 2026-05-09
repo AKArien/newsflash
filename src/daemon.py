@@ -33,12 +33,6 @@ logger = logging.getLogger(__name__)
 import src.config as config
 from src.flasher import DeviceFlasher, matching_devices
 
-_NOTIFY_MATCH_RULE = (
-    "type='method_call',"
-    "interface='org.freedesktop.Notifications',"
-    "member='Notify'"
-)
-
 class newsflash:
     """d-bus notification monitor that flashes device leds."""
 
@@ -119,7 +113,11 @@ class newsflash:
                 "org.freedesktop.DBus.Monitoring",
             )
             monitoring_iface.BecomeMonitor(
-                dbus.Array([_NOTIFY_MATCH_RULE], signature="s"),
+                dbus.Array([(
+                    "type='method_call',"
+                    "interface='org.freedesktop.Notifications',"
+                    "member='Notify'"
+                )], signature="s"),
                 dbus.UInt32(0),
             )
         except dbus.exceptions.DBusException as exc:
