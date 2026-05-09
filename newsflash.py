@@ -35,6 +35,13 @@ from flasher import DeviceFlasher, matching_devices
 
 logger = logging.getLogger(__name__)
 
+_NOTIFY_MATCH_RULE = (
+    "type='method_call',"
+    "interface='org.freedesktop.Notifications',"
+    "member='Notify'"
+)
+_NOTIFY_MATCH_RULE_EAVESDROP = "eavesdrop=true," + _NOTIFY_MATCH_RULE
+
 
 class NewsFlash:
     """D-Bus notification monitor that flashes keyboard LEDs."""
@@ -118,12 +125,6 @@ class NewsFlash:
         monitor_bus = dbus.SessionBus(private=True)
         monitor_bus.add_message_filter(self._on_message)
 
-        _NOTIFY_RULE = (
-            "type='method_call',"
-            "interface='org.freedesktop.Notifications',"
-            "member='Notify'"
-        )
-        _NOTIFY_RULE_EAVESDROP = "eavesdrop=true," + _NOTIFY_RULE
         try:
             monitoring_iface = dbus.Interface(
                 monitor_bus.get_object(
@@ -132,7 +133,7 @@ class NewsFlash:
                 "org.freedesktop.DBus.Monitoring",
             )
             monitoring_iface.BecomeMonitor(
-                dbus.Array([_NOTIFY_RULE], signature="s"),
+                dbus.Array([_NOTIFY_MATCH_RULE], signature="s"),
                 dbus.UInt32(0),
             )
         except dbus.exceptions.DBusException as exc:
@@ -141,7 +142,7 @@ class NewsFlash:
                 exc,
             )
             try:
-                monitor_bus.add_match_string(_NOTIFY_RULE_EAVESDROP)
+                monitor_bus.add_match_string(_NOTIFY_MATCH_RULE_EAVESDROP)
             except dbus.exceptions.DBusException as exc2:
                 logger.error(
                     "Could not install eavesdrop match rule (%s). "
