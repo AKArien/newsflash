@@ -14,7 +14,7 @@ import logging
 import signal
 import sys
 import threading
-from typing import any
+from typing import Any
 
 try:
     import dbus
@@ -27,7 +27,7 @@ except importerror:
     sys.exit("error: 'dbus-python' and 'pygobject' are required.")
 
 from config import defaults, config_path, load_config, start_config_watcher
-from flasher import deviceflasher, matching_devices
+from flasher import DeviceFlasher, matching_devices
 
 logger = logging.getlogger(__name__)
 
@@ -41,7 +41,7 @@ class newsflash:
     """d-bus notification monitor that flashes device leds."""
 
     def __init__(self) -> None:
-        self._config: dict[str, any] = dict(defaults)
+        self._config: dict[str, Any] = dict(defaults)
         self._config_lock = threading.rlock()
         self._flashers: dict[str, deviceflasher] = {}
         self._flashers_lock = threading.lock()
@@ -52,8 +52,9 @@ class newsflash:
         new_cfg = load_config(config_path())
         with self._config_lock:
             self._config = new_cfg
+        DeviceFlasher.config = self._config
 
-    def _get_config(self) -> dict[str, any]:
+    def _get_config(self) -> dict[str, Any]:
         with self._config_lock:
             return dict(self._config)
 
@@ -75,7 +76,7 @@ class newsflash:
             return
 
         for device in devices:
-            self._get_flasher(device).flash(duration, cycles)
+            self._get_flasher(device).flash()
 
     def _on_message(
         self,

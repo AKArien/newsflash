@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 LED_CLASS_PATH = "/sys/class/leds"
 ANIMATION_HZ = 60  # brightness updates per second during animation
 
-
 def matching_devices(patterns: list[str]) -> list[str]:
     """Return LED device names under LED_CLASS_PATH that match any pattern.
 
@@ -36,7 +35,6 @@ def matching_devices(patterns: list[str]) -> list[str]:
                 break
     return matched
 
-
 class DeviceFlasher:
     """Manages the flash animation for a single LED device.
 
@@ -44,13 +42,18 @@ class DeviceFlasher:
     requested while one is already running it is silently ignored.
     """
 
-    def __init__(self, device: str, system_bus: dbus.SystemBus) -> None:
+    config: dict
+    system_bus: dbus.SystemBus
+
+    def __init__(self, device: str) -> None:
         self.device = device
-        self._system_bus = system_bus
-        self._direct = os.access(
-            os.path.join(LED_CLASS_PATH, device, "brightness"), os.W_OK
-        )
         self._lock = threading.Lock()
+        self.initial = self._read_brightness()
+        self.max_val = self._read_max_brightness()
+        self._write = (os.access(os.path.join(LED_CLASS_PATH, device, "brightness")), os.W_OK
+            ? self.write_brightness_direct
+            : self.write_brightness_logind
+        )
 
     def _read_int(self, path: str, default: int = 0) -> int:
         try:
@@ -78,7 +81,7 @@ class DeviceFlasher:
     def _write_brightness_logind(self, value: int) -> None:
         """Set brightness via systemd-logind's SetBrightness D-Bus method."""
         try:
-            obj = self._system_bus.get_object(
+            obj = system_bus.get_object(
                 "org.freedesktop.login1", "/org/freedesktop/login1"
             )
             iface = dbus.Interface(obj, "org.freedesktop.login1.Manager")
@@ -88,28 +91,15 @@ class DeviceFlasher:
                 "SetBrightness via logind failed for %s: %s", self.device, exc
             )
 
-    @staticmethod
-    def _animation_keyframes(
-        initial: int, max_brightness: int, cycles: int
-    ) -> list[int]:
+    def _animation_keyframes(self, initial: int) -> list[int]:
         """Return the brightness keyframe sequence for an animation.
 
         The animation smoothly moves from *initial* → *max_brightness* → 0,
         repeating that up-down cycle *cycles* times, then returns to *initial*.
         """
-        return [initial] + [max_brightness, 0] * cycles + [initial]
+        return [initial] + [self.max_brightness, 0] * config["cycles"] + [initial]
 
-    def _write(self, value: int) -> None:
-        value = max(0, value)
-        if self._direct:
-            try:
-                self._write_brightness_direct(value)
-                return
-            except OSError:
-                self._direct = False  # fall through to logind
-        self._write_brightness_logind(value)
-
-    def flash(self, duration: float, cycles: int) -> None:
+    def flash(self) -> None:
         """Start a flash animation in a new thread (non-blocking).
 
         Does nothing if an animation is already in progress for this device.
@@ -118,22 +108,18 @@ class DeviceFlasher:
             return
         threading.Thread(
             target=self._run_animation,
-            args=(duration, cycles),
+            args=(config["duration"], config["cycles"]),
             daemon=True,
             name=f"flash-{self.device}",
         ).start()
 
-    def _run_animation(self, duration: float, cycles: int) -> None:
+    def _run_animation(self) -> None:
         try:
             initial = self._read_brightness()
-            max_val = self._read_max_brightness()
-            if max_val == 0:
-                return
-
-            keyframes = self._animation_keyframes(initial, max_val, cycles)
+            keyframes = self._animation_keyframes(initial)
             n_segments = len(keyframes) - 1
-            total_steps = max(1, int(duration * ANIMATION_HZ))
-            step_dt = duration / total_steps
+            total_steps = max(1, int(config["duration"] * ANIMATION_HZ))
+            step_dt = config["duration"] / total_steps
 
             for step in range(total_steps + 1):
                 t = step / total_steps          # 0.0 … 1.0
