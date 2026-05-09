@@ -22,14 +22,16 @@ try:
     import dbus.exceptions
     import dbus.lowlevel
     import dbus.mainloop.glib
-    # from gi.repository import glib
+    import gi
+    gi.require_version("GLib", "2.0")
+    from gi.repository import GLib
 except ImportError:
     sys.exit("error: 'dbus-python' and 'pygobject' are required.")
 
 logger = logging.getLogger(__name__)
 
-import config
-from flasher import DeviceFlasher, matching_devices
+import src.config as config
+from src.flasher import DeviceFlasher, matching_devices
 
 _NOTIFY_MATCH_RULE = (
     "type='method_call',"
@@ -42,11 +44,11 @@ class newsflash:
 
     def __init__(self) -> None:
         self._config = config.DEFAULTS
-        self._config_lock = threading.rlock()
+        self._config_lock = threading.RLock()
         self._flashers: dict[str, DeviceFlasher] = {}
-        self._flashers_lock = threading.lock()
-        self._system_bus: dbus.systembus | none = none
-        self._loop: glib.mainloop | none = none
+        self._flashers_lock = threading.Lock()
+        self._system_bus: dbus.SystemBus | None = None
+        self._loop: GLib.MainLoop | None = None
 
     def reload_config(self) -> None:
         new_cfg = config.load(config.path())
@@ -78,26 +80,26 @@ class newsflash:
 
     def _on_message(
         self,
-        connection: dbus.connection.connection,
-        message: dbus.lowlevel.message,
+        connection: dbus.connection.Connection,
+        message: dbus.lowlevel.Message,
     ) -> int:
         """dbus listener callback"""
         if (
-            message.get_type() == dbus.lowlevel.message_type_method_call
+            message.get_type() == dbus.lowlevel.MESSAGE_TYPE_METHOD_CALL
             and message.get_interface() == "org.freedesktop.notifications"
             and message.get_member() == "notify"
         ):
-            threading.thread(
-                target=self._flash_all, daemon=true, name="flash-dispatch"
+            threading.Thread(
+                target=self._flash_all, daemon=True, name="flash-dispatch"
             ).start()
-        return dbus.lowlevel.handler_result_not_yet_handled
+        return dbus.lowlevel.HANDLER_RESULT_NOT_YET_HANDLED
 
     def run(self) -> None:
         self.reload_config()
 
-        dbus.mainloop.glib.dbusgmainloop(set_as_default=true)
-        self._system_bus = dbus.systembus()
-        session_bus = dbus.sessionbus()
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        self._system_bus = dbus.SystemBus()
+        session_bus = dbus.SessionBus()
 
         # Private session-bus connection used only for monitoring.
         # private=True avoids converting the shared SessionBus singleton to
@@ -109,7 +111,7 @@ class newsflash:
         # unaffected.
         try:
             monitoring_iface = dbus.Interface(
-                monitor_bus.get_object(
+                session_bus.get_object(
                     "org.freedesktop.DBus", "/org/freedesktop/DBus"
                 ),
                 "org.freedesktop.DBus.Monitoring",
@@ -120,14 +122,14 @@ class newsflash:
             )
         except dbus.exceptions.DBusException as exc:
             logger.warning(
-                "BecomeMonitor unavailable (%s); falling back to eavesdrop match rule.",
-                "newsflash will *probably* not work. "
+                "BecomeMonitor unavailable (%s) ; ",
+                "newsflash will *probably* not work.",
                 exc,
             )
 
         config.start_watcher(self.reload_config)
 
-        self._loop = glib.mainloop()
+        self._loop = GLib.MainLoop()
 
         def _shutdown(signum: int, _frame: object) -> None:
             logger.info("received signal %d, shutting down.", signum)
@@ -142,7 +144,7 @@ class newsflash:
         logger.info("newsflash daemon stopped.")
 
 def main() -> None:
-    logging.basicconfig(level=logging.info, format="%(levelname)s: %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     newsflash().run()
 
 if __name__ == "__main__":
