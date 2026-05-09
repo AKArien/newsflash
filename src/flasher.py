@@ -14,7 +14,7 @@ import dbus.exceptions
 logger = logging.getLogger(__name__)
 
 LED_CLASS_PATH = "/sys/class/leds"
-ANIMATION_FPS = 60  # brightness updates per second during animation
+ANIMATION_HZ = 60  # brightness updates per second during animation
 
 
 def matching_devices(patterns: list[str]) -> list[str]:
@@ -96,8 +96,6 @@ class DeviceFlasher:
 
         The animation smoothly moves from *initial* → *max_brightness* → 0,
         repeating that up-down cycle *cycles* times, then returns to *initial*.
-
-        Example (cycles=2):  [initial, max, 0, max, 0, initial]
         """
         return [initial] + [max_brightness, 0] * cycles + [initial]
 
@@ -112,7 +110,7 @@ class DeviceFlasher:
         self._write_brightness_logind(value)
 
     def flash(self, duration: float, cycles: int) -> None:
-        """Start a flash animation in a daemon thread (non-blocking).
+        """Start a flash animation in a new thread (non-blocking).
 
         Does nothing if an animation is already in progress for this device.
         """
@@ -134,7 +132,7 @@ class DeviceFlasher:
 
             keyframes = self._animation_keyframes(initial, max_val, cycles)
             n_segments = len(keyframes) - 1
-            total_steps = max(1, int(duration * ANIMATION_FPS))
+            total_steps = max(1, int(duration * ANIMATION_HZ))
             step_dt = duration / total_steps
 
             for step in range(total_steps + 1):
