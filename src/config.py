@@ -28,9 +28,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 DEFAULTS = {
-    "duration": 1.0,       # total animation time in seconds
-    "cycles": 2,           # number of up-down flash cycles
-    "devices": ["*keyboard*", "*kbd*"],  # led device name patterns
+    "duration": 1.0,    # total animation time in seconds
+    "cycles": 2,        # number of up-down flash cycles
+    "animation_hz": 60, # changes per second for the animation
+    "devices": ["*keyboard*", "*kbd*"], # led device name patterns
 }
 
 config_filename = "newsflash.toml"
@@ -41,7 +42,6 @@ def path() -> str:
         os.path.expanduser("~"), ".config"
     )
     return os.path.join(config_home, config_filename)
-
 
 def load(path: str) -> dict[str, Any]:
     """return configuration from *path* merged over defaults.
