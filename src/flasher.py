@@ -55,12 +55,12 @@ class DeviceFlasher:
         else:
             self._write = self._write_brightness_logind
 
-    def _read_int(self, path: str, default: int = 0) -> int:
+    def _read_int(self, path: str) -> int:
         try:
             with open(path) as fh:
                 return int(fh.read().strip())
         except (OSError, ValueError):
-            return default
+            return 0
 
     def _read_brightness(self) -> int:
         return self._read_int(
@@ -70,7 +70,6 @@ class DeviceFlasher:
     def _read_max_brightness(self) -> int:
         return self._read_int(
             os.path.join(LED_CLASS_PATH, self.device, "max_brightness"),
-            default=255,
         )
 
     def _write_brightness_direct(self, value: int) -> None:
@@ -80,6 +79,7 @@ class DeviceFlasher:
 
     def _write_brightness_logind(self, value: int) -> None:
         """Set brightness via systemd-logind's SetBrightness D-Bus method."""
+        logger.info("writing brightness with logind : %d", value)
         try:
             obj = DeviceFlasher.system_bus.get_object(
                 "org.freedesktop.login1", "/org/freedesktop/login1"
@@ -104,8 +104,10 @@ class DeviceFlasher:
 
         Does nothing if an animation is already in progress for this device.
         """
-        if not self._lock.locked():
+        logger.info("here")
+        if self._lock.locked():
             return
+        logger.info("there")
         threading.Thread(
             target=self._run_animation,
             daemon=True,
@@ -113,6 +115,7 @@ class DeviceFlasher:
         ).start()
 
     def _run_animation(self) -> None:
+        logger.info("everywhere")
         with self._lock:
             try:
                 initial = self._read_brightness()
