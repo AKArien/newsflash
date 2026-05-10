@@ -91,9 +91,7 @@ class newsflash:
                                 '/org/freedesktop/DBus')
         obj_dbus.BecomeMonitor(["interface='org.freedesktop.Notifications'"],
                             dbus.UInt32(0),
-                            interface='org.freedesktop.Notifications')
-
-        session_bus.add_message_filter(self._on_message)
+                            dbus_interface='org.freedesktop.DBus.Monitoring')
 
         config.start_watcher(self.reload_config)
 

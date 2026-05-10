@@ -83,11 +83,15 @@ class DeviceFlasher:
                 "org.freedesktop.login1", "/org/freedesktop/login1"
             )
             iface = dbus.Interface(obj, "org.freedesktop.login1.Manager")
-            iface.SetBrightness("leds", self.device, dbus.UInt32(value))
-        except dbus.exceptions.DBusException as exc:
-            logger.debug(
-                "SetBrightness via logind failed for %s: %s", self.device, exc
+            iface.SetBrightness(
+                "leds", self.device, dbus.UInt32(value),
+                reply_handler=lambda: None,
+                error_handler=lambda exc: logger.warning(
+                    "SetBrightness via logind failed for %s: %s", self.device, exc
+                ),
             )
+        except dbus.exceptions.DBusException as exc:
+            logger.warning("SetBrightness call error for %s: %s", self.device, exc)
 
     def _animation_keyframes(self, initial: int) -> list[int]:
         """Return the brightness keyframe sequence for an animation.
