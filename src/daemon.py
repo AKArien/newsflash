@@ -12,21 +12,12 @@ from __future__ import annotations
 
 import logging
 import signal
-import sys
 import threading
 from typing import Any
 
-try:
-    import dbus
-    import dbus.connection
-    import dbus.exceptions
-    import dbus.lowlevel
-    import dbus.mainloop.glib
-    import gi
-    gi.require_version("GLib", "2.0")
-    from gi.repository import GLib
-except ImportError:
-    sys.exit("error: 'dbus-python' and 'pygobject' are required.")
+import dbus
+from gi.repository import GLib
+from dbus.mainloop.glib import DBusGMainLoop
 
 logger = logging.getLogger(__name__)
 
@@ -74,47 +65,35 @@ class newsflash:
         self,
         connection: dbus.connection.Connection,
         message: dbus.lowlevel.Message,
-    ) -> int:
+    ) -> None:
         """dbus listener callback"""
-        logger.info("message intercepted.")
-        if (
-            message.get_type() == dbus.lowlevel.MESSAGE_TYPE_METHOD_CALL
-            and message.get_interface() == "org.freedesktop.Notifications"
-            and message.get_member() == "Notify"
-        ):
-            self._flash_all()
-        return dbus.lowlevel.HANDLER_RESULT_NOT_YET_HANDLED
+        try:
+            if (
+                message.get_type() == dbus.lowlevel.MESSAGE_TYPE_METHOD_CALL
+                and message.get_interface() == "org.freedesktop.Notifications"
+                and message.get_member() == "Notify"
+            ):
+                logger.info("notification detected")
+                self._flash_all()
+        except Exception as exc:
+            logger.error("error in _on_message: %s", exc, exc_info=True)
 
     def run(self) -> None:
         self.reload_config()
 
-        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        DBusGMainLoop(set_as_default=True)
         self._system_bus = dbus.SystemBus()
         DeviceFlasher.system_bus = self._system_bus
-        monitor_bus = dbus.SessionBus(private=True)
-        monitor_bus.add_message_filter(self._on_message)
+        session_bus = dbus.SessionBus(private=True)
+        session_bus.add_message_filter(self._on_message)
 
-        try:
-            monitoring_iface = dbus.Interface(
-                monitor_bus.get_object(
-                    "org.freedesktop.DBus", "/org/freedesktop/DBus"
-                ),
-                "org.freedesktop.DBus.Monitoring",
-            )
-            monitoring_iface.BecomeMonitor(
-                dbus.Array([(
-                    "type='method_call',"
-                    "interface='org.freedesktop.Notifications',"
-                    "member='Notify'"
-                )], signature="s"),
-                dbus.UInt32(0),
-            )
-        except dbus.exceptions.DBusException as exc:
-            logger.warning(
-                "BecomeMonitor unavailable (%s) ; ",
-                "newsflash will *probably* not work.",
-                exc,
-            )
+        obj_dbus = session_bus.get_object('org.freedesktop.DBus',
+                                '/org/freedesktop/DBus')
+        obj_dbus.BecomeMonitor(["interface='org.freedesktop.Notifications'"],
+                            dbus.UInt32(0),
+                            interface='org.freedesktop.Notifications')
+
+        session_bus.add_message_filter(self._on_message)
 
         config.start_watcher(self.reload_config)
 
