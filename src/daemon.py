@@ -91,19 +91,12 @@ class newsflash:
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self._system_bus = dbus.SystemBus()
         DeviceFlasher.system_bus = self._system_bus
-        session_bus = dbus.SessionBus()
+        monitor_bus = dbus.SessionBus(private=True)
+        monitor_bus.add_message_filter(self._on_message)
 
-        # Private session-bus connection used only for monitoring.
-        # private=True avoids converting the shared SessionBus singleton to
-        # monitor mode, which would break any other dbus-python code sharing
-        # that connection.
-        # BecomeMonitor ensures the D-Bus daemon still routes Notify calls
-        # normally to the real notification daemon; newsflash receives
-        # read-only copies and never sends a reply, so notify-send is
-        # unaffected.
         try:
             monitoring_iface = dbus.Interface(
-                session_bus.get_object(
+                monitor_bus.get_object(
                     "org.freedesktop.DBus", "/org/freedesktop/DBus"
                 ),
                 "org.freedesktop.DBus.Monitoring",
