@@ -40,7 +40,6 @@ class newsflash:
         self._config = config.DEFAULTS
         self._config_lock = threading.RLock()
         self._flashers: dict[str, DeviceFlasher] = {}
-        self._flashers_lock = threading.Lock()
         self._system_bus: dbus.SystemBus | None = None
         self._loop: GLib.MainLoop | None = None
 
@@ -55,10 +54,9 @@ class newsflash:
             return dict(self._config)
 
     def _get_flasher(self, device: str) -> DeviceFlasher:
-        with self._flashers_lock:
-            if device not in self._flashers:
-                self._flashers[device] = DeviceFlasher(device)
-            return self._flashers[device]
+        if device not in self._flashers:
+            self._flashers[device] = DeviceFlasher(device)
+        return self._flashers[device]
 
     def _flash_all(self) -> None:
         cfg = self._get_config()
@@ -84,9 +82,7 @@ class newsflash:
             and message.get_interface() == "org.freedesktop.Notifications"
             and message.get_member() == "Notify"
         ):
-            threading.Thread(
-                target=self._flash_all, daemon=True, name="flash-dispatch"
-            ).start()
+            self._flash_all()
         return dbus.lowlevel.HANDLER_RESULT_NOT_YET_HANDLED
 
     def run(self) -> None:
