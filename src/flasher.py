@@ -14,7 +14,6 @@ import dbus.exceptions
 logger = logging.getLogger(__name__)
 
 LED_CLASS_PATH = "/sys/class/leds"
-ANIMATION_HZ = 60  # brightness updates per second during animation
 
 def matching_devices(patterns: list[str]) -> list[str]:
     """Return LED device names under LED_CLASS_PATH that match any pattern.
@@ -79,7 +78,6 @@ class DeviceFlasher:
 
     def _write_brightness_logind(self, value: int) -> None:
         """Set brightness via systemd-logind's SetBrightness D-Bus method."""
-        logger.info("writing brightness with logind : %d", value)
         try:
             obj = DeviceFlasher.system_bus.get_object(
                 "org.freedesktop.login1", "/org/freedesktop/login1"
@@ -104,10 +102,8 @@ class DeviceFlasher:
 
         Does nothing if an animation is already in progress for this device.
         """
-        logger.info("here")
         if self._lock.locked():
             return
-        logger.info("there")
         threading.Thread(
             target=self._run_animation,
             daemon=True,
@@ -115,13 +111,12 @@ class DeviceFlasher:
         ).start()
 
     def _run_animation(self) -> None:
-        logger.info("everywhere")
         with self._lock:
             try:
                 initial = self._read_brightness()
                 keyframes = self._animation_keyframes(initial)
                 n_segments = len(keyframes) - 1
-                total_steps = max(1, int(DeviceFlasher.config["duration"] * ANIMATION_HZ))
+                total_steps = max(1, int(DeviceFlasher.config["duration"] * DeviceFlasher.config["animation_hz"]))
                 step_dt = DeviceFlasher.config["duration"] / total_steps
 
                 for step in range(total_steps + 1):
