@@ -104,38 +104,36 @@ class DeviceFlasher:
 
         Does nothing if an animation is already in progress for this device.
         """
-        if not self._lock.acquire(blocking=False):
+        if not self._lock.locked():
             return
         threading.Thread(
             target=self._run_animation,
-            # args=(DeviceFlasher.config["duration"], DeviceFlasher.config["cycles"]),
             daemon=True,
             name=f"flash-{self.device}",
         ).start()
 
     def _run_animation(self) -> None:
-        try:
-            initial = self._read_brightness()
-            keyframes = self._animation_keyframes(initial)
-            n_segments = len(keyframes) - 1
-            total_steps = max(1, int(DeviceFlasher.config["duration"] * ANIMATION_HZ))
-            step_dt = DeviceFlasher.config["duration"] / total_steps
+        with self._lock:
+            try:
+                initial = self._read_brightness()
+                keyframes = self._animation_keyframes(initial)
+                n_segments = len(keyframes) - 1
+                total_steps = max(1, int(DeviceFlasher.config["duration"] * ANIMATION_HZ))
+                step_dt = DeviceFlasher.config["duration"] / total_steps
 
-            for step in range(total_steps + 1):
-                t = step / total_steps          # 0.0 … 1.0
-                seg_f = t * n_segments
-                seg = min(int(seg_f), n_segments - 1)
-                frac = seg_f - seg
-                brightness = int(
-                    keyframes[seg]
-                    + (keyframes[seg + 1] - keyframes[seg]) * frac
-                )
-                self._write(brightness)
-                if step < total_steps:
-                    time.sleep(step_dt)
+                for step in range(total_steps + 1):
+                    t = step / total_steps          # 0.0 … 1.0
+                    seg_f = t * n_segments
+                    seg = min(int(seg_f), n_segments - 1)
+                    frac = seg_f - seg
+                    brightness = int(
+                        keyframes[seg]
+                        + (keyframes[seg + 1] - keyframes[seg]) * frac
+                    )
+                    self._write(brightness)
+                    if step < total_steps:
+                        time.sleep(step_dt)
 
-            self._write(initial)  # ensure exact restoration
-        except Exception as exc:
-            logger.error("Animation error for %s: %s", self.device, exc)
-        finally:
-            self._lock.release()
+                self._write(initial)  # ensure exact restoration
+            except Exception as exc:
+                logger.error("Animation error for %s: %s", self.device, exc)
