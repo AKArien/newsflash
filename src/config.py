@@ -37,7 +37,7 @@ config_filename = "newsflash.toml"
 
 def path() -> str:
     """return the absolute path to the user's configuration file."""
-    config_home = os.environ.get("xdg_config_home") or os.path.join(
+    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
         os.path.expanduser("~"), ".config"
     )
     return os.path.join(config_home, config_filename)
