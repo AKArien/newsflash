@@ -73,7 +73,6 @@ class newsflash:
                 and message.get_interface() == "org.freedesktop.Notifications"
                 and message.get_member() == "Notify"
             ):
-                logger.info("notification detected")
                 self._flash_all()
         except Exception as exc:
             logger.error("error in _on_message: %s", exc, exc_info=True)
