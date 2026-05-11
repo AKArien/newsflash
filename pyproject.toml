@@ -21,4 +21,4 @@ dependencies = [
 newsflash = "newsflash:main"
 
 [tool.setuptools]
-py-modules = ["newsflash", "config", "flasher"]
+py-modules = ["newsflash", "src.config", "src.daemon", "src.flasher"]
