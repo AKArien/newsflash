@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import time
+import math
 
 import dbus
 import dbus.exceptions
@@ -99,7 +100,17 @@ class DeviceFlasher:
         The animation smoothly moves from *initial* → *max_brightness* → 0,
         repeating that up-down cycle *cycles* times, then returns to *initial*.
         """
-        return [initial] + [self.max_brightness, 0] * DeviceFlasher.config["cycles"] + [initial]
+        keyframes = []
+        cfg = DeviceFlasher.config
+        steps = cfg["animation_hz"] * cfg["cycles"]
+        phase = 0.5 + initial / (2 * self.max_brightness)
+        for i in range(steps):
+            keyframes.append(round(
+                ((math.cos((i / steps + phase) * math.tau) + 1) / 2)
+                * self.max_brightness
+            ))
+
+        return keyframes
 
     def flash(self) -> None:
         """Start a flash animation in a new thread (non-blocking).
@@ -118,24 +129,15 @@ class DeviceFlasher:
         with self._lock:
             try:
                 initial = self._read_brightness()
+
+                wait = DeviceFlasher.config["duration"] / DeviceFlasher.config["animation_hz"] / DeviceFlasher.config["cycles"]
                 keyframes = self._animation_keyframes(initial)
-                n_segments = len(keyframes) - 1
-                total_steps = max(1, int(DeviceFlasher.config["duration"] * DeviceFlasher.config["animation_hz"]))
-                step_dt = DeviceFlasher.config["duration"] / total_steps
 
-                for step in range(total_steps + 1):
-                    t = step / total_steps          # 0.0 … 1.0
-                    seg_f = t * n_segments
-                    seg = min(int(seg_f), n_segments - 1)
-                    frac = seg_f - seg
-                    brightness = int(
-                        keyframes[seg]
-                        + (keyframes[seg + 1] - keyframes[seg]) * frac
-                    )
-                    self._write(brightness)
-                    if step < total_steps:
-                        time.sleep(step_dt)
+                for i in range(DeviceFlasher.config["cycles"]):
+                    for a in keyframes:
+                        self._write(a)
+                        time.sleep(wait)
 
-                self._write(initial)  # ensure exact restoration
+                self._write(initial)  # in case the last keyframe isn’t exact
             except Exception as exc:
                 logger.error("Animation error for %s: %s", self.device, exc)
