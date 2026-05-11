@@ -1,0 +1,10 @@
+[Unit]
+Description=My Daemon Service
+After=graphical-session.target
+
+[Service]
+ExecStart=newsflash
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
