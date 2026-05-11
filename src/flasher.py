@@ -91,19 +91,16 @@ class DeviceFlasher:
             )
 
     def _animation_keyframes(self, initial: int) -> list[int]:
-        """Return the brightness keyframe sequence for an animation.
-
-        The animation smoothly moves from *initial* → *max_brightness* → 0,
-        repeating that up-down cycle *cycles* times, then returns to *initial*.
-        """
         keyframes = []
         cfg = DeviceFlasher.config
-        steps = cfg["animation_hz"] * cfg["cycles"]
+
+        steps = round(cfg["duration"] * cfg["animation_hz"])
         phase = 0.5 + initial / (2 * self.max_brightness)
+
         for i in range(steps):
             keyframes.append(round(
-                ((math.cos((i / steps + phase) * math.tau) + 1) / 2)
-                * self.max_brightness
+                (math.cos((i / steps * cfg["cycles"] + phase) * math.tau) + 1)
+                / 2 * self.max_brightness
             ))
 
         return keyframes
@@ -126,14 +123,15 @@ class DeviceFlasher:
             try:
                 initial = self._read_brightness()
 
-                wait = DeviceFlasher.config["duration"] / DeviceFlasher.config["animation_hz"] / DeviceFlasher.config["cycles"]
                 keyframes = self._animation_keyframes(initial)
 
-                for i in range(DeviceFlasher.config["cycles"]):
-                    for a in keyframes:
-                        self._write(a)
-                        time.sleep(wait)
+                wait = (DeviceFlasher.config["duration"] / len(keyframes))
 
-                self._write(initial)  # in case the last keyframe isn’t exact
+                for a in keyframes:
+                    self._write(a)
+                    time.sleep(wait)
+
+                self._write(initial) # in case the last frame isn’t exact
+
             except Exception as exc:
                 logger.error("Animation error for %s: %s", self.device, exc)
