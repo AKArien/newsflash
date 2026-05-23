@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 DEFAULTS = {
     "duration": 1.0,    # total animation time in seconds
     "cycles": 2,        # number of up-down flash cycles
-    "animation_hz": 60, # changes per second for the animation
+    "animation_hz": 30, # changes per second for the animation
     "devices": ["*keyboard*", "*kbd*"], # led device name patterns
 }
 

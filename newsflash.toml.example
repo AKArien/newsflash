@@ -1,16 +1,20 @@
-# newsflash.toml — example configuration for newsflash
-#
+# newsflash.toml : example configuration for newsflash
+
 # Copy this file to $XDG_CONFIG_HOME/newsflash.toml
 # (usually ~/.config/newsflash.toml) and adjust as needed.
-# Changes are picked up automatically without restarting the daemon.
+# Configuration changes are hot-reloaded
 
-# Total duration of one flash sequence, in seconds.
+# Total duration of the flashing sequence, in seconds.
 duration = 1.0
 
 # Number of up-down brightness cycles per notification.
-# Each cycle goes from the current brightness to the maximum and back to zero;
+# Each cycle goes from the current brightness to the maximum and back to zero ;
 # after all cycles the brightness is restored to its original value.
 cycles = 2
+
+# Changes per second for the animation.
+# Higher values might lead to sluggishness if your hardware is slow to respond.
+animation_hz = 30
 
 # LED device name patterns to flash (supports * wildcards).
 # Device names are matched against entries in /sys/class/leds/.
