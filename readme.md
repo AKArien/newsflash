@@ -4,22 +4,9 @@ A tiny tiny daemon to flash your computer’s lights when a you recieve a notifi
 
 ## Configuration
 
-You can configure the total duration of flashes, the amount of flashes executed for each notification and the devices that will be flashed.
+You can configure the total duration of flashes, the amount of flashes executed for each notification, the animation smoothness and the devices that will be flashed.
 
-Configured with a file at `$XDG_CONFIG_HOME/newsflash.toml` (falls back to `~/.config/` if unset), this would explicitely set the default configuration :
-
-```toml
-# Total duration of the flashing, in seconds
-duration = 1.0
-
-# Number of up-down brightness cycles per notification
-cycles = 2
-
-# LED device name patterns matched against /sys/class/leds/ entries ; supports * wildcards
-devices = ["*keyboard*", "*kbd*"]
-```
-
-Changes to configuration are hot-reloaded as long as your system supports inotify.
+Configured with a file at `$XDG_CONFIG_HOME/newsflash.toml` (falls back to `~/.config/newsflash.toml` if unset), check [the example config file](./newsflash.toml.example) for guidance. Changes to configuration are hot-reloaded as long as your system supports inotify.
 
 ## Installation
 
