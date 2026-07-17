@@ -27,11 +27,15 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-DEFAULTS = {
+DEFAULT_VALS = {
 	"duration": 1.0,    # total animation time in seconds
 	"cycles": 2,        # number of up-down flash cycles
 	"animation_hz": 30, # changes per second for the animation
-	"devices": ["*keyboard*", "*kbd*"], # led device name patterns
+}
+
+DEFAULT = {
+	"*keyboard*" : DEFAULT_VALS,
+	"*kbd*" : DEFAULT_VALS
 }
 
 config_filename = "newsflash.toml"
@@ -49,13 +53,20 @@ def load(path: str) -> dict[str, Any]:
 	missing or unreadable files are silently treated as empty; parse errors
 	are logged and also result in the defaults being used.
 	"""
-	cfg = dict(DEFAULTS)
+	cfg = dict(DEFAULT)
 	if os.path.exists(path):
 		try:
 			with open(path, "rb") as fh:
 				loaded = tomllib.load(fh)
-			cfg.update(loaded)
-			logger.info("loaded configuration from %s", path)
+				final = {}
+
+				# parse categories selectors : keys are space separated patterns
+				for i in loaded.keys():
+					for a in i.split(" "):
+						final[a] = loaded[i]
+
+				cfg.update(final)
+				logger.info("loaded configuration from %s", path)
 		except Exception as exc:
 			logger.error("failed to load config %s: %s", path, exc)
 	return cfg
