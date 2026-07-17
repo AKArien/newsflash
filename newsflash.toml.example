@@ -6,8 +6,10 @@
 
 # selector : any number of space-separated device names
 # the names are matched against entries in /sys/class/leds/
-# supports * wildcards. Here, we try to get every keyboard :
-[*keyboard* *kbd*]
+# supports * wildcards. Here, we try to get every keyboard.
+# note that if using the wildcard and/or multiple names,
+# you will need to quote the section key as we do here.
+["*keyboard* *kbd*"]
 
 # Total duration of the flashing sequence, in seconds.
 duration = 1.0
