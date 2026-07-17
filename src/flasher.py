@@ -12,8 +12,6 @@ import math
 import dbus
 import dbus.exceptions
 
-import src.config
-
 logger = logging.getLogger(__name__)
 
 LED_CLASS_PATH = "/sys/class/leds"

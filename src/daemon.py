@@ -29,31 +29,21 @@ class newsflash:
 
     def __init__(self) -> None:
         self._config = config.DEFAULT
-        self._config_lock = threading.RLock()
-        self._flashers: dict[str, DeviceFlasher] = {}
+        self._flashers: list[DeviceFlasher] = []
         self._system_bus: dbus.SystemBus | None = None
         self._loop: GLib.MainLoop | None = None
 
     def reload_config(self) -> None:
-        new_cfg = config.load(config.path())
-        with self._config_lock:
-            self._config = new_cfg
+        self._config = config.load(config.path())
         DeviceFlasher.global_config = self._config
-
-    def _get_config(self) -> dict[str, Any]:
-        with self._config_lock:
-            return dict(self._config)
-
-    def _flash_all(self) -> None:
-        cfg = self._get_config()
-        patterns = list(cfg.keys())
-
-        devices = matching_devices(patterns)
-        if not devices:
+        patterns = self._config.keys()
+        self._flashers = matching_devices(patterns)
+        if not self._flashers:
             logger.debug("no led devices matched patterns: %s", patterns)
             return
 
-        for device in devices:
+    def _flash_all(self) -> None:
+        for device in self._flashers:
             device.flash()
 
     def _on_message(
