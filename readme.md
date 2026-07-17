@@ -4,7 +4,7 @@ A tiny tiny daemon to flash your computer’s lights when a you recieve a notifi
 
 ## Configuration
 
-You can configure the total duration of flashes, the amount of flashes executed for each notification, the animation smoothness and the devices that will be flashed.
+For each device, you can configure the total duration of flashes, the amount of flashes executed for each notification, the animation smoothness and the devices that will be flashed.
 
 Configured with a file at `$XDG_CONFIG_HOME/newsflash.toml` (falls back to `~/.config/newsflash.toml` if unset), check [the example config file](./newsflash.toml.example) for guidance. Changes to configuration are hot-reloaded as long as your system supports inotify.
 
