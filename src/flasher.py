@@ -12,11 +12,13 @@ import math
 import dbus
 import dbus.exceptions
 
+import src.config
+
 logger = logging.getLogger(__name__)
 
 LED_CLASS_PATH = "/sys/class/leds"
 
-def matching_devices(patterns: list[str]) -> list[str]:
+def matching_devices(patterns: list[str]) -> list[DeviceFlasher]:
     """Return LED device names under LED_CLASS_PATH that match any pattern.
 
     Patterns use fnmatch wildcards (e.g. ``*keyboard*``).
@@ -24,16 +26,16 @@ def matching_devices(patterns: list[str]) -> list[str]:
     if not os.path.isdir(LED_CLASS_PATH):
         return []
     seen: set[str] = set()
-    matched: list[str] = []
+    flashers: list[DeviceFlasher] = []
     for device in os.listdir(LED_CLASS_PATH):
         if device in seen:
             continue
         for pattern in patterns:
             if fnmatch.fnmatch(device, pattern):
-                matched.append(device)
+                flashers.append(DeviceFlasher(device, DeviceFlasher.global_config[pattern]))
                 seen.add(device)
                 break
-    return matched
+    return flashers
 
 class DeviceFlasher:
     """Manages the flash animation for a single LED device.
@@ -42,11 +44,12 @@ class DeviceFlasher:
     requested while one is already running it is silently ignored.
     """
 
-    config: dict | None = None
+    global_config: dict | None = None
     system_bus: dbus.SystemBus | None = None
 
-    def __init__(self, device: str) -> None:
+    def __init__(self, device: str, config: dict) -> None:
         self.device = device
+        self.config = config
         self._lock = threading.Lock()
         self.initial = self._read_brightness()
         self.max_brightness = self._read_max_brightness()
@@ -92,7 +95,7 @@ class DeviceFlasher:
 
     def _animation_keyframes(self, initial: int) -> list[int]:
         keyframes = []
-        cfg = DeviceFlasher.config
+        cfg = self.config
 
         steps = round(cfg["duration"] * cfg["animation_hz"])
         phase = 0.5 + initial / (2 * self.max_brightness)
@@ -125,7 +128,7 @@ class DeviceFlasher:
 
                 keyframes = self._animation_keyframes(initial)
 
-                wait = (DeviceFlasher.config["duration"] / len(keyframes))
+                wait = (self.config["duration"] / len(keyframes))
 
                 for a in keyframes:
                     self._write(a)

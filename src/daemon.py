@@ -28,7 +28,7 @@ class newsflash:
     """d-bus notification monitor that flashes device leds."""
 
     def __init__(self) -> None:
-        self._config = config.DEFAULTS
+        self._config = config.DEFAULT
         self._config_lock = threading.RLock()
         self._flashers: dict[str, DeviceFlasher] = {}
         self._system_bus: dbus.SystemBus | None = None
@@ -38,20 +38,15 @@ class newsflash:
         new_cfg = config.load(config.path())
         with self._config_lock:
             self._config = new_cfg
-        DeviceFlasher.config = self._config
+        DeviceFlasher.global_config = self._config
 
     def _get_config(self) -> dict[str, Any]:
         with self._config_lock:
             return dict(self._config)
 
-    def _get_flasher(self, device: str) -> DeviceFlasher:
-        if device not in self._flashers:
-            self._flashers[device] = DeviceFlasher(device)
-        return self._flashers[device]
-
     def _flash_all(self) -> None:
         cfg = self._get_config()
-        patterns: list[str] = cfg.get("devices", config.DEFAULTS["devices"])
+        patterns = list(cfg.keys())
 
         devices = matching_devices(patterns)
         if not devices:
@@ -59,7 +54,7 @@ class newsflash:
             return
 
         for device in devices:
-            self._get_flasher(device).flash()
+            device.flash()
 
     def _on_message(
         self,
