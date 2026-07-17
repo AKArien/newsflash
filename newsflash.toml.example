@@ -4,18 +4,17 @@
 # (usually ~/.config/newsflash.toml) and adjust as needed.
 # Configuration changes are hot-reloaded
 
+# selector : any number of space-separated device names
+# the names are matched against entries in /sys/class/leds/
+# supports * wildcards. Here, we try to get every keyboard :
+[*keyboard* *kbd*]
+
 # Total duration of the flashing sequence, in seconds.
 duration = 1.0
 
-# Number of up-down brightness cycles per notification.
-# Each cycle goes from the current brightness to the maximum and back to zero ;
-# after all cycles the brightness is restored to its original value.
+# Number of up-down brightness cycles in a flashing sequence
 cycles = 2
 
 # Changes per second for the animation.
 # Higher values might lead to sluggishness if your hardware is slow to respond.
 animation_hz = 30
-
-# LED device name patterns to flash (supports * wildcards).
-# Device names are matched against entries in /sys/class/leds/.
-devices = ["*keyboard*", "*kbd*"]
